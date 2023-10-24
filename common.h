@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdlib.h>
-
 #include <arpa/inet.h>
 
 void logexit(const char *msg);

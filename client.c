@@ -11,6 +11,16 @@
 
 #define BUFSZ 1024
 
+int CLIENT_ID = 0;
+
+struct BlogOperation {
+    int client_id;
+    int operation_type;
+    int server_response;
+    char topic[50];
+    char content[2048];
+};
+
 void usage(int argc, char** argv);
 
 int main(int argc, char** argv) {

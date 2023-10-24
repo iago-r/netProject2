@@ -1,4 +1,5 @@
 #include "common.h"
+#include "server_lib.h"
 
 #include <pthread.h>
 #include <stdlib.h>
@@ -8,7 +9,6 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
-
 
 #define BUFSZ 1024
 
@@ -67,7 +67,6 @@ int main(int argc, char **argv) {
         cdata->csock = csock;
         memcpy(&(cdata->storage), &cstorage, sizeof(cstorage));
         
-
         pthread_t tid;
         pthread_create(&tid, NULL, client_thread, cdata);
         
@@ -86,6 +85,7 @@ void* client_thread(void* data) {
     //struct sockaddr *caddr = (struct sockaddr *)(&cdata->storage);
     
     printf("client connected\n");
+    //printf("client %02.i connected\n", ID_COUNTER);
     
     char buffer[BUFSZ];
     while (1) {
