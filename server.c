@@ -2,8 +2,8 @@
 #include "server_lib.h"
 
 #include <pthread.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -25,6 +25,8 @@ int main(int argc, char **argv) {
         usage(argc, argv);
     }
 
+    //initializeIdList();
+
     struct sockaddr_storage storage;
     if (0 != server_sockaddr_init(argv[1], argv[2], &storage)) {
         usage(argc, argv);
@@ -37,6 +39,7 @@ int main(int argc, char **argv) {
     }
 
     int enable = 1;
+    //if(0 != setsockopt(s, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int))) {
     if(0 != setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
         logexit("setsockopt");
     }
@@ -83,9 +86,14 @@ void usage(int argc, char **argv) {
 void* client_thread(void* data) {
     struct client_data* cdata = (struct client_data *)data;
     //struct sockaddr *caddr = (struct sockaddr *)(&cdata->storage);
+
+   /*  int id = assignId();
+    if (-1 == id) {
+        logexit("id");
+    } */
     
+    //printf("client %2.i connected\n", id);
     printf("client connected\n");
-    //printf("client %02.i connected\n", ID_COUNTER);
     
     char buffer[BUFSZ];
     while (1) {
@@ -101,6 +109,7 @@ void* client_thread(void* data) {
 
         // EXIT.........................................................
     }
+    //dischargeId(id);
     close(cdata->csock);
     pthread_exit(EXIT_SUCCESS);
 }
