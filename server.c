@@ -113,3 +113,12 @@ void* client_thread(void* data) {
     close(cdata->csock);
     pthread_exit(EXIT_SUCCESS);
 }
+
+// O servidor deve decidir se envia a resposta a um ou mais computadores,
+// ou seja, o send do server tem que ser feito seletivamente
+
+struct connections {
+    int id;
+    int csock;
+    int subscriptions[20];
+};
