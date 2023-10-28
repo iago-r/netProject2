@@ -228,7 +228,7 @@ void actionResultParse(struct BlogOperation *msg) {
             break;        
     }
 
-    printf("new post added in <topic> by <client_id>\n", topics, client);
+    //printf("new post added in <topic> by <client_id>\n", topics, client);
 }
 
 //====================================// FUNCOES DE AUXILIO //====================================//
