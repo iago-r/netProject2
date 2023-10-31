@@ -69,6 +69,9 @@ int main(int argc, char** argv) {
         //ACTION PARSE -> CREATE!
 
         // EXIT.........................................................
+        if(msg.operation_type == 5) {
+            break;
+        }
     }
     close(s);
     exit(EXIT_SUCCESS);
@@ -95,7 +98,7 @@ int getID(int socket, struct BlogOperation msg) {
       //GET ID...................................................
       bzero(&msg, sizeof(msg));
       recv(socket, &msg, sizeof(msg), 0);
-      //printMsg(&msg);
+      printMsg(&msg);
     } while (msg.operation_type != 1 && msg.server_response != 1);
     
     return msg.client_id;
