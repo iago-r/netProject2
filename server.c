@@ -44,28 +44,29 @@ void initializeListOfTopics();
 struct Topic* searchTopic(struct BlogOperation *msg);
 struct Topic* createTopic(struct BlogOperation *msg);
 void publish(struct BlogOperation *msg);
+void listTopics(struct BlogOperation *msg);
 void subscribe(struct BlogOperation *msg);
 void unsubscribe(struct BlogOperation *msg);
-void listTopics();
-void commandParse(struct BlogOperation *msg);
+void selectCommand(struct BlogOperation *msg, int client_id);
 void printMsg(struct BlogOperation *msg);
 
-void assignID();
+int assignID(int socket);
+void dischargeID(int id);
 
 struct TopicList Topics;
 struct BlogOperation msg_to_send;
 
-int sockets[11] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+int sockets[11] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 int main(int argc, char **argv) {
-    initializeListOfTopics(Topics);
-    
     if (argc < 3) {
         usage(argc, argv);
     }
 
+    initializeListOfTopics(Topics);
+
     struct sockaddr_storage storage;
-    if (0 != server_sockaddr_init(argv[1], argv[2], &storage)) {
+    if (server_sockaddr_init(argv[1], argv[2], &storage) != 0) {
         usage(argc, argv);
     }
 
@@ -76,17 +77,16 @@ int main(int argc, char **argv) {
     }
 
     int enable = 1;
-    //if(0 != setsockopt(s, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int))) {
-    if(0 != setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
+    if(setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != 0) {
         logexit("setsockopt");
     }
 
     struct sockaddr *addr = (struct sockaddr *)(&storage);
-    if (0 != bind(s, addr, sizeof(storage))) {
+    if (bind(s, addr, sizeof(storage)) != 0) {
         logexit("bind");
     }
 
-    if (0 != listen(s, 10)) { // quantidade de conexões que podem estar pendentes para tratamento
+    if (listen(s, 10) != 0) { // quantidade de conexões que podem estar pendentes para tratamento
         logexit("listen");
     }
     
@@ -109,7 +109,6 @@ int main(int argc, char **argv) {
         
         pthread_t tid;
         pthread_create(&tid, NULL, client_thread, cdata);
-        
     }
     exit(EXIT_SUCCESS);
 }
@@ -123,68 +122,40 @@ void usage(int argc, char **argv) {
 void* client_thread(void* data) {
     struct client_data* cdata = (struct client_data *)data;
     
-    //printf("client %2.i connected\n", id);
-    printf("client connected\n");
+    int client_id = assignID(cdata->csock);
+    printf("client %02i connected\n", client_id);
     
-    char buffer[BUFSZ];
     struct BlogOperation msg_received;
     while (1) {
-        //RECEIVING PACKAGE.............................................       
-        // bzero(buffer, sizeof(buffer));
-        // recv(cdata->csock, buffer, sizeof(buffer), 0);
-        // printf("%s", buffer);
-        bzero(buffer, sizeof(buffer));
-        recv(cdata->csock, buffer, sizeof(buffer), 0);
-        //commandParse();
-
-        //SENDING PACKAGE...............................................
-        bzero(buffer, sizeof(buffer));
-        printf("> "); fgets(buffer, BUFSZ-1, stdin);
-        send(cdata->csock, buffer, sizeof(buffer), 0);
-
-        // EXIT.........................................................
-
-
-
-
-
-
-
-
-
-
-
-
-
         // CLEANING BUFFERS ............................................
         bzero(&msg_received, sizeof(msg_received));
         bzero(&msg_to_send, sizeof(msg_to_send));
 
         //RECEIVING PACKAGE.............................................       
-        recv(cdata->csock, buffer, sizeof(buffer), 0);
-        commandParse(&msg_received);
+        recv(cdata->csock, &msg_received, sizeof(msg_received), 0);
+        selectCommand(&msg_received, client_id);
+        printf("//RECEIVING................."); printMsg(&msg_received);
+        //printf("checkpoint A\n");
 
-        
-        send(cdata->csock, buffer, sizeof(buffer), 0);
+        //SENDING PACKAGE...............................................
+        printf("//SENDING..................."); printMsg(&msg_to_send);
+/*         if (msg_to_send.operation_type == 2) {
+            for (int i = 1; i < 11; i++) {
+                send(cdata->csock, &msg_to_send, sizeof(msg_to_send), 0);
+            }
+        } */
+        send(cdata->csock, &msg_to_send, sizeof(msg_to_send), 0);
+
+        // EXIT.........................................................
 
     }
-    //dischargeId(id);
     close(cdata->csock);
+    dischargeID(client_id);
     pthread_exit(EXIT_SUCCESS);
 }
 
 // O servidor deve decidir se envia a resposta a um ou mais computadores,
 // ou seja, o send do server tem que ser feito seletivamente
-
-
-
-struct connection {
-    int status;
-    int csock;
-    int subscriptions[100];
-};
-
-struct connection connections[11];
 
 
 void initializeListOfTopics() {
@@ -226,6 +197,32 @@ void publish(struct BlogOperation *msg) {
         topic_to_publish = createTopic(msg);
     }
     strcpy(topic_to_publish->last_content_published, msg->content);
+
+    msg_to_send.client_id = msg->client_id;    
+    strcpy(msg_to_send.topic, topic_to_publish->topic_name);
+    strcpy(msg_to_send.content, topic_to_publish->last_content_published);
+    //printf("%s", topic_to_publish->last_content_published);
+}
+
+void listTopics(struct BlogOperation *msg) {
+    struct Topic *cursor = Topics.head;
+    if (cursor == NULL) {
+        strcpy(msg_to_send.content, "no topics available");
+    }
+    else {
+        while (cursor != NULL) {
+            strcat(msg_to_send.content, cursor->topic_name);
+            cursor = cursor->next;
+            if (cursor != NULL) {
+                strcat(msg_to_send.content, "; ");
+            }
+        }
+        strcat(msg_to_send.content, "\n");
+    }
+
+    msg_to_send.client_id = msg->client_id;
+    strcpy(msg_to_send.topic, "");
+    //printf("%s",msg_to_send.content);
 }
 
 void subscribe(struct BlogOperation *msg) {
@@ -234,6 +231,14 @@ void subscribe(struct BlogOperation *msg) {
         topic_to_subscribe = createTopic(msg);
     }
     topic_to_subscribe->subscribers[msg->client_id] = 1;
+
+    msg_to_send.client_id = msg->client_id;
+    strcpy(msg_to_send.topic, "");
+    strcpy(msg_to_send.content, "");
+}
+
+void disconnect(){
+
 }
 
 void unsubscribe(struct BlogOperation *msg) {
@@ -241,84 +246,59 @@ void unsubscribe(struct BlogOperation *msg) {
     if (topic_to_unsubscribe != NULL) {
         topic_to_unsubscribe->subscribers[msg->client_id] = 0;
     }
+
+    msg_to_send.client_id = msg->client_id;
+    strcpy(msg_to_send.topic, "");
+    strcpy(msg_to_send.content, "");
 }
 
-void listTopics() {
-    struct Topic *cursor = Topics.head;
-    if (cursor == NULL) {
-        strcpy(msg_to_send.content, "no topics available");
-    }
-    while (cursor != NULL) {
-        strcat(msg_to_send.content, cursor->topic_name);
-        cursor = cursor->next;
-        if (cursor != NULL) {
-            strcat(msg_to_send.content, "; ");
-        }
-    }
-    strcat(cursor->topic_name, "\n");
+void selectCommand(struct BlogOperation *msg, int client_id){
+
+    msg_to_send.operation_type = msg->operation_type;
+    msg_to_send.server_response = 1;
+    //msg_to_send.server_response = 1;
+    //printf("OP Type %i\n", msg->operation_type);
+    switch (msg->operation_type) {
+        // CONNECT
+        case 1:
+            msg_to_send.client_id = client_id;
+            strcpy(msg_to_send.topic, "");
+            strcpy(msg_to_send.content, "");
+            break;
+
+        // PUBLISH
+        case 2:
+            publish(msg);
+            break;
+        
+        // LIST
+        case 3:
+            listTopics(msg);
+            break;
+        
+        // SUBSCRIBE
+        case 4:
+            subscribe(msg);
+            break;
+        
+        // EXIT
+        case 5:
+            msg_to_send.client_id = msg->client_id;
+            strcpy(msg_to_send.topic, "");
+            strcpy(msg_to_send.content, "");
+            break;
+        
+        // UNSUBSCRIBE
+        case 6:
+            unsubscribe(msg);
+            break;
+
+        // ERRORS
+        default:
+        break;
+    }  
 }
 
-
-
-
-void displayTopics() {
-    struct Topic *cursor = Topics.head;
-    if (cursor == NULL) {
-        printf("no topics available");
-    }
-    while (cursor != NULL) {
-        printf("%s", cursor->topic_name);
-        cursor = cursor->next;
-        if (cursor != NULL) {
-            printf("; ");
-        }
-    }
-    printf("\n");
-}
-/* 
- */
-void commandParse(struct BlogOperation *msg){
-
-
-  switch (msg->operation_type)
-  {
-    // CONNECT
-    case 1:
-      assignID();
-      break;
-
-    // PUBLISH
-    case 2:
-      publish(msg);
-      //listTopics(Topics);
-      break;
-    
-    /* 
-    // LIST
-    case 3:
-      msg_to_send.operation_type = 1;
-      msg_to_send.server_response = 1;
-      strcpy(msg_to_send.topic, "");
-      strcpy(msg_to_send.content, "");
-      break;
-    
-    // SUBSCRIBE
-    case 4:
-      break;
-    
-    // EXIT
-    case 5:
-      break;
-    
-    // UNSUBSCRIBE
-    case 6:
-      break;
-     */
-    // ERRORS
-    default:
-      break;
-  }  
-}
 /* 
 int* assignID() {
   for (int i = 1; i < 11; i++) {
@@ -333,15 +313,33 @@ int* assignID() {
 
 //====================================// FUNCOES DE AUXILIO //====================================//
 
-void assignID() {
+int assignID(int socket) {
+    for (int i = 1; i < 11; i++) {
+        if (sockets[i] == 0) {
+            printf("%i\n", socket);
+            sockets[i] = socket;
+            return i;
+        }
+    }
+    return -1;
+}
+
+void dischargeID(int id) {
+    if(id > 0 && id < 11) {
+        sockets[id] = 0;
+    }
+}
+    
+
   // ESTUDAR UMA FORMA DE ATRIBUIR UM ID PARA O CLIENT AQUI
+  /* 
   msg_to_send.client_id = 1;
-  //=======================================================
+  
   msg_to_send.operation_type = 1;
   msg_to_send.server_response = 1;
   strcpy(msg_to_send.topic, "");
   strcpy(msg_to_send.content, "");
-}
+ */
 
 void printMsg(struct BlogOperation *msg) {
   printf("\n");

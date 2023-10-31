@@ -21,7 +21,7 @@ struct BlogOperation {
     char content[2048];
 };
 
-int getID(int socket, struct BlogOperation *msg);
+int getID(int socket, struct BlogOperation msg);
 int countNumberOfWords(char *line);
 int extractCmd(char *cmd_line, char *arg_container);
 void commandParse(struct BlogOperation *msg);
@@ -54,20 +54,16 @@ int main(int argc, char** argv) {
 
     //char buffer[BUFSZ];
     struct BlogOperation msg;
-    CLIENT_ID = getID(s, &msg);
+    CLIENT_ID = getID(s, msg);
+    //printf("ID %i\n", CLIENT_ID);
     while (1) {
         //SENDING PACKAGE...............................................
-        //bzero(buffer, sizeof(buffer));
-        //printf("> "); fgets(buffer, BUFSZ-1, stdin);
-        //send(s, buffer, sizeof(buffer), 0);
         bzero(&msg, sizeof(msg));
         commandParse(&msg);
+        printMsg(&msg);
         send(s, &msg, sizeof(msg), 0);
 
         //RECEIVING PACKAGE.............................................       
-        //bzero(buffer, sizeof(buffer));
-        //recv(s, buffer, sizeof(buffer), 0);
-        //printf("%s", buffer);
         bzero(&msg, sizeof(msg));
         recv(s, &msg, sizeof(msg), 0);
         //ACTION PARSE -> CREATE!
@@ -84,21 +80,25 @@ void usage(int argc, char **argv) {
     exit(EXIT_FAILURE);
 }
 
-int getID(int socket, struct BlogOperation *msg) {
+int getID(int socket, struct BlogOperation msg) {
     do {
-        bzero(&msg, sizeof(msg));
-        msg->client_id = CLIENT_ID;
-        msg->operation_type = 1;
-        msg->server_response = 0;
-        strcpy(msg->topic, "");
-        strcpy(msg->content, "");
-        send(socket, &msg, sizeof(msg), 0);
+      //REQUEST ID...............................................
+      bzero(&msg, sizeof(msg));
+      msg.client_id = CLIENT_ID;
+      msg.operation_type = 1;
+      msg.server_response = 0;
+      strcpy(msg.topic, "");
+      strcpy(msg.content, "");
+      send(socket, &msg, sizeof(msg), 0);
+      //printMsg(&msg);
 
-        bzero(&msg, sizeof(msg));
-        recv(socket, &msg, sizeof(msg), 0);
-    } while (msg->operation_type != 1 && msg->server_response != 1);
+      //GET ID...................................................
+      bzero(&msg, sizeof(msg));
+      recv(socket, &msg, sizeof(msg), 0);
+      //printMsg(&msg);
+    } while (msg.operation_type != 1 && msg.server_response != 1);
     
-    return msg->client_id;
+    return msg.client_id;
 }
 
 //==========================================// FUNCOES //==========================================//
@@ -202,7 +202,7 @@ void commandParse(struct BlogOperation *msg){
         strcpy(msg->topic, "");
         fillContent(valid_command, msg);
       }
-      else if (valid_command == 2 || valid_command == 3) {
+      else if (valid_command == 4 || valid_command == 6) {
         strcpy(msg->topic, arg_container);
         strcpy(msg->content, "");
       }
@@ -242,8 +242,8 @@ void actionResultParse(struct BlogOperation *msg) {
 void printMsg(struct BlogOperation *msg) {
   printf("\n");
   printf("client_id: %i\n", msg->client_id);
-  printf("server_response: %i\n", msg->server_response);
   printf("operation_type: %i\n", msg->operation_type);
+  printf("server_response: %i\n", msg->server_response);
   printf("msg->topic: %s\n", msg->topic);
   printf("msg->content: %s\n", msg->content);
   printf("\n");
