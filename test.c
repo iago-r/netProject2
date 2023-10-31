@@ -105,7 +105,11 @@ void commandParse(struct BlogOperation *msg){
     if (valid_command != -1) {
       msg->operation_type = valid_command;
 
-      if (valid_command == 2 || valid_command == 3 || valid_command == 5) {
+      if (valid_command == 2) {
+        strcpy(msg->topic, arg_container);
+        fillContent(valid_command, msg);
+      }
+      else if (valid_command == 3 || valid_command == 5) {
         strcpy(msg->topic, "");
         fillContent(valid_command, msg);
       }

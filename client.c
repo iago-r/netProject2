@@ -21,6 +21,7 @@ struct BlogOperation {
     char content[2048];
 };
 
+int getID(int socket, struct BlogOperation *msg);
 int countNumberOfWords(char *line);
 int extractCmd(char *cmd_line, char *arg_container);
 void commandParse(struct BlogOperation *msg);
@@ -53,13 +54,13 @@ int main(int argc, char** argv) {
 
     //char buffer[BUFSZ];
     struct BlogOperation msg;
-    CLIENT_ID = (s, &msg);
+    CLIENT_ID = getID(s, &msg);
     while (1) {
         //SENDING PACKAGE...............................................
         //bzero(buffer, sizeof(buffer));
         //printf("> "); fgets(buffer, BUFSZ-1, stdin);
         //send(s, buffer, sizeof(buffer), 0);
-        bzero(msg, sizeof(msg));
+        bzero(&msg, sizeof(msg));
         commandParse(&msg);
         send(s, &msg, sizeof(msg), 0);
 
@@ -67,7 +68,7 @@ int main(int argc, char** argv) {
         //bzero(buffer, sizeof(buffer));
         //recv(s, buffer, sizeof(buffer), 0);
         //printf("%s", buffer);
-        bzero(msg, sizeof(msg));
+        bzero(&msg, sizeof(msg));
         recv(s, &msg, sizeof(msg), 0);
         //ACTION PARSE -> CREATE!
 
@@ -85,7 +86,7 @@ void usage(int argc, char **argv) {
 
 int getID(int socket, struct BlogOperation *msg) {
     do {
-        bzero(msg, sizeof(msg));
+        bzero(&msg, sizeof(msg));
         msg->client_id = CLIENT_ID;
         msg->operation_type = 1;
         msg->server_response = 0;
@@ -93,7 +94,7 @@ int getID(int socket, struct BlogOperation *msg) {
         strcpy(msg->content, "");
         send(socket, &msg, sizeof(msg), 0);
 
-        bzero(msg, sizeof(msg));
+        bzero(&msg, sizeof(msg));
         recv(socket, &msg, sizeof(msg), 0);
     } while (msg->operation_type != 1 && msg->server_response != 1);
     
@@ -193,7 +194,11 @@ void commandParse(struct BlogOperation *msg){
     if (valid_command != -1) {
       msg->operation_type = valid_command;
 
-      if (valid_command == 2 || valid_command == 3 || valid_command == 5) {
+      if (valid_command == 2) {
+        strcpy(msg->topic, arg_container);
+        fillContent(valid_command, msg);
+      }
+      else if (valid_command == 3 || valid_command == 5) {
         strcpy(msg->topic, "");
         fillContent(valid_command, msg);
       }
@@ -203,6 +208,7 @@ void commandParse(struct BlogOperation *msg){
       }
     }
   } while (valid_command == -1);
+  
 }
 
 void actionResultParse(struct BlogOperation *msg) {
