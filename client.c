@@ -25,8 +25,7 @@ int getID(int socket, struct BlogOperation msg);
 int countNumberOfWords(char *line);
 int extractCmd(char *cmd_line, char *arg_container);
 void commandParse(struct BlogOperation *msg, int client_id);
-//void fillContent(int command_type, struct BlogOperation *msg);
-void resultParse(struct BlogOperation *msg);
+void resultParse(struct BlogOperation *msg_received, int client_id);
 void printMsg(struct BlogOperation *msg); // DELETAR
 
 
@@ -51,21 +50,21 @@ int main(int argc, char** argv) {
     logexit("connect");
   }
 
-  struct BlogOperation msg_to_send, msg_to_receive;
-  int client_id = getID(s, msg_to_send);
+  struct BlogOperation msg;
+  int client_id = getID(s, msg);
   while (1) {
     //SENDING PACKAGE...............................................
-    bzero(&msg_to_send, sizeof(msg_to_send));
-    commandParse(&msg_to_send, client_id);
-    send(s, &msg_to_send, sizeof(msg_to_send), 0);
+    bzero(&msg, sizeof(msg));
+    commandParse(&msg, client_id);
+    send(s, &msg, sizeof(msg), 0);
 
     //RECEIVING PACKAGE.............................................       
-    bzero(&msg_to_receive, sizeof(msg_to_receive));
-    recv(s, &msg_to_receive, sizeof(msg_to_receive), 0);
-    resultParse(&msg_to_receive);
+    bzero(&msg, sizeof(msg));
+    recv(s, &msg, sizeof(msg), 0);
+    resultParse(&msg, client_id);
 
     // EXIT.........................................................
-    if(msg_to_send.operation_type == 5) {
+    if(msg.operation_type == 5) {
       break;
     }
   }
@@ -156,22 +155,7 @@ int extractCmd(char *cmd_line, char *arg_container) {
   return -1;
 }
 
-/* void fillContent(int command_type, struct BlogOperation *msg) {
-  char content_line[2048];
-
-  if (command_type == 2) {
-    printf("> "); fgets(content_line, sizeof(content_line), stdin);
-    strcpy(msg->content, content_line);
-    bzero(content_line, sizeof(content_line));
-  }
-  else if (command_type == 3 || command_type == 5){
-    strcpy(msg->content, "");
-    bzero(content_line, sizeof(content_line));
-  }   
-} */
-
-void commandParse(struct BlogOperation *msg, int client_id){
-
+void commandParse(struct BlogOperation *msg, int client_id) {
   msg->client_id = client_id;
   msg->server_response = 0;
   
@@ -183,19 +167,16 @@ void commandParse(struct BlogOperation *msg, int client_id){
     valid_command = extractCmd(cmd_line, arg_container);
     if (valid_command != -1) {
       msg->operation_type = valid_command;
-
       if (valid_command == 2) {
         strcpy(msg->topic, arg_container);
         printf("> "); fgets(cmd_line, sizeof(cmd_line), stdin);
         strcpy(msg->content, cmd_line);
         bzero(cmd_line, sizeof(cmd_line));
-        //fillContent(valid_command, msg);
       }
       else if (valid_command == 3 || valid_command == 5) {
         strcpy(msg->topic, "");
         strcpy(msg->content, "");
         bzero(cmd_line, sizeof(cmd_line));
-        //fillContent(valid_command, msg);
       }
       else if (valid_command == 4 || valid_command == 6) {
         strcpy(msg->topic, arg_container);
@@ -206,28 +187,54 @@ void commandParse(struct BlogOperation *msg, int client_id){
   printf("\n//SENDING PACKAGE........................\n"); printMsg(msg);
 }
 
-void resultParse(struct BlogOperation *msg) {
-    switch (msg->operation_type) {
-        
-        // SERVER.........................publish
+//void resultParse(struct BlogOperation *msg) {
+void resultParse(struct BlogOperation *msg_received, int client_id)
+{  
+  do
+  {
+    if (1 == msg_received->server_response)// && (msg_sended->operation_type == msg_received->operation_type))
+    {
+      switch (msg_received->operation_type)
+      {
+        // SERVER.............................publish
         case 2:
-            break;
+          if (client_id != msg_received->client_id)
+            printf("new post added in %s by %02i\n%s", msg_received->topic, msg_received->client_id, msg_received->topic);                   
+          break;
+      
         // SERVER.........................list topics
         case 3:
-            break;
+          break;
 
-        // SERVER.........................subscribe
+        // SERVER...........................subscribe
         case 4:
-            break;
+          break;
         
-        // SERVER.........................exit
+        // SERVER................................exit
         case 5:
-            break;
+          break;
         
         // SERVER.........................unsubscribe
         case 6:
-            break;        
+          break;
+
+        default:
+          break;
+      }
     }
+  } while (1 != msg_received->server_response);
+
+
+
+
+
+
+
+
+
+
+
+
 
     //printf("new post added in <topic> by <client_id>\n", topics, client);
 }
