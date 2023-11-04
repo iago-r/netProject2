@@ -2,7 +2,7 @@ dir := ./bin/
 
 all:
 	gcc -Wall -c common.c -o $(dir)common.o
-	gcc -Wall client.c $(dir)common.o -o $(dir)client
+	gcc -Wall -pthread client.c $(dir)common.o -o $(dir)client
 	gcc -Wall -pthread server.c $(dir)common.o -o $(dir)server
 
  clean:

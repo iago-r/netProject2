@@ -1,7 +1,8 @@
 #include "common.h"
 
-#include <stdlib.h>
+#include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -11,7 +12,14 @@
 
 #define BUFSZ 1024
 
-struct BlogOperation {
+struct client_data
+{
+    int csock, id;
+    struct sockaddr_storage storage;
+};
+
+struct BlogOperation
+{
   int client_id;
   int operation_type;
   int server_response;
@@ -20,7 +28,7 @@ struct BlogOperation {
 };
 
 void usage(int argc, char** argv);
-
+void* client_thread(void* data);
 int getID(int socket, struct BlogOperation msg);
 int countNumberOfWords(char *line);
 int extractCmd(char *cmd_line, char *arg_container);
@@ -29,53 +37,91 @@ void resultParse(struct BlogOperation *msg_received, int client_id);
 void printMsg(struct BlogOperation *msg); // DELETAR
 
 
-int main(int argc, char** argv) {
-  if (argc < 3) {
+int main(int argc, char** argv)
+{
+  if (argc < 3)
     usage(argc, argv);
-  }
 
   struct sockaddr_storage storage;
-  if (0 != addrparse(argv[1], argv[2], &storage)) {
+  if (0 != addrparse(argv[1], argv[2], &storage))
     usage(argc, argv);
-  }
 
   int s;
   s = socket(storage.ss_family, SOCK_STREAM, 0);
-  if (s == -1) {
-      logexit("socket");
-  }
+  if (s == -1)
+    logexit("socket");
 
   struct sockaddr* addr = (struct sockaddr *)(&storage);
-  if (0 != connect(s, addr, sizeof(storage))) {
+  if (0 != connect(s, addr, sizeof(storage)))
     logexit("connect");
-  }
+
+  struct client_data* cdata = malloc(sizeof(*cdata));
+  if (!cdata)
+    logexit("malloc");
+
+  cdata->csock = s;
+  memcpy(&(cdata->storage), &storage, sizeof(storage));
 
   struct BlogOperation msg;
   int client_id = getID(s, msg);
-  while (1) {
+  cdata->id = client_id;
+  
+  pthread_t tid;
+  pthread_create(&tid, NULL, client_thread, cdata);
+  
+  while (1)
+  {
+
     //SENDING PACKAGE...............................................
     bzero(&msg, sizeof(msg));
     commandParse(&msg, client_id);
     send(s, &msg, sizeof(msg), 0);
 
     //RECEIVING PACKAGE.............................................       
-    bzero(&msg, sizeof(msg));
+/*     bzero(&msg, sizeof(msg));
     recv(s, &msg, sizeof(msg), 0);
-    resultParse(&msg, client_id);
+    resultParse(&msg, client_id); */
 
     // EXIT.........................................................
-    if(msg.operation_type == 5) {
+    if(msg.operation_type == 5)
       break;
-    }
   }
   close(s);
   exit(EXIT_SUCCESS);
 }
 
-void usage(int argc, char **argv) {
+void usage(int argc, char **argv)
+{
   printf("usage %s <server IP> <server port>\n", argv[0]);
   printf("example: %s 127.0.0.1 51511\n", argv[0]);
   exit(EXIT_FAILURE);
+}
+
+void* client_thread(void* data)
+{
+    struct client_data* cdata = (struct client_data *)data;
+    struct BlogOperation msg_received;
+    while (1)
+    {
+      //RECEIVING PACKAGE.............................................       
+      bzero(&msg_received, sizeof(msg_received));
+      printf("BROADCAST -> Socket[%i]: %i\n", msg_received.client_id, cdata->csock);
+      //printf("VALUE: %li", recv(cdata->csock, &msg_received, sizeof(msg_received), 0));
+      printf("\n//PARSING RESULT.........................\n"); //printMsg(&msg_received);  
+
+
+      printf("client_id: %i\n", msg_received.client_id);
+      printf("operation_type: %i\n", msg_received.operation_type);
+      printf("server_response: %i\n", msg_received.server_response);
+      printf("msg->topic: %s\n", msg_received.topic);
+      printf("msg->content: %s\n", msg_received.content);
+      printf("\n");
+
+
+      resultParse(&msg_received, cdata->id);
+    }
+    close(cdata->csock);
+    pthread_exit(EXIT_SUCCESS);
 }
 
 int getID(int socket, struct BlogOperation msg) {
@@ -92,6 +138,7 @@ int getID(int socket, struct BlogOperation msg) {
     //GET ID...................................................
     bzero(&msg, sizeof(msg));
     recv(socket, &msg, sizeof(msg), 0);
+    /* [DELETE]  */printf("\n//GETTING ID..............server response\n"); printMsg(&msg);
   } while (msg.operation_type != 1 && msg.server_response != 1);
   return msg.client_id;
 }
@@ -187,9 +234,8 @@ void commandParse(struct BlogOperation *msg, int client_id) {
   printf("\n//SENDING PACKAGE........................\n"); printMsg(msg);
 }
 
-//void resultParse(struct BlogOperation *msg) {
 void resultParse(struct BlogOperation *msg_received, int client_id)
-{  
+{
   do
   {
     if (1 == msg_received->server_response)// && (msg_sended->operation_type == msg_received->operation_type))
@@ -253,5 +299,5 @@ void printMsg(struct BlogOperation *msg) {
 
 //printf("Checkpoint\n");
 
-//[DELETE] printf("\n//GETTING ID..............server response\n"); printMsg(&msg);
+
 //printf("number of words: %i\n", number_of_words);
