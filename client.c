@@ -31,7 +31,6 @@ int getID(int socket, struct BlogOperation msg);
 int extractCmd(char *cmd_line, char *arg_container);
 void commandParse(struct BlogOperation *msg, int client_id);
 void resultParse(struct BlogOperation *msg_received, int client_id);
-void printMsgAndCustomStatus(struct BlogOperation msg_package, const char *msg); // [DELETE]
 
 int main(int argc, char **argv)
 {
@@ -80,9 +79,7 @@ int main(int argc, char **argv)
     // RECEIVING PACKAGE.............................................
     bzero(&msg, sizeof(msg));
     recv(s, &msg, sizeof(msg), 0);
-    printMsgAndCustomStatus(msg, "[CLIENT] RECEIVE"); // [DELETE]
     resultParse(&msg, client_id);
-    //printMsgAndCustomStatus(msg, "[CLIENT][RESULT_PARSE]"); // [DELETE]
 
     // EXIT.........................................................
     if (msg.operation_type == 5)
@@ -113,12 +110,10 @@ int getID(int socket, struct BlogOperation msg)
     strcpy(msg.topic, "");
     strcpy(msg.content, "");
     send(socket, &msg, sizeof(msg), 0);
-    //printMsgAndCustomStatus(msg, "[getID][client] SEND"); // [DELETE]
 
     // GET ID...................................................
     bzero(&msg, sizeof(msg));
     recv(socket, &msg, sizeof(msg), 0);
-    //printMsgAndCustomStatus(msg, "[getID][client] RECEIVE"); // [DELETE]
   } while (msg.operation_type != 1 && msg.server_response != 1);
   return msg.client_id;
 }
@@ -133,7 +128,6 @@ void *client_thread(void *data)
     bzero(&msg, sizeof(msg));
     commandParse(&msg, cdata->id);
     send(cdata->csock, &msg, sizeof(msg), 0);
-    //printMsgAndCustomStatus(msg, "[CLIENT][CLIENT_THREAD] SEND"); // [DELETE]
 
     // EXIT.........................................................
     if (msg.operation_type == 5)
@@ -150,7 +144,7 @@ int extractCmd(char *cmd_line, char *arg_container)
   char cmd1[64], cmd2[64], cmd3[1024];
   int number_of_words = sscanf(cmd_line, "%s %s %s", cmd1, cmd2, cmd3);
 
-  if (-1 == number_of_words || 3 < number_of_words)
+  if (number_of_words == -1 || number_of_words > 3)
   {
     return -1;
   }
@@ -174,9 +168,17 @@ int extractCmd(char *cmd_line, char *arg_container)
         bzero(cmd_line, sizeof(&cmd_line));
         return i;
       }
-      else if ((i == 4 || i == 6) && number_of_words == 2)
+      else if ((i == 4 || i == 6) && //number_of_words == 2)
+        (number_of_words == 2 || (number_of_words == 3 && ((strcmp(cmd2, "in") == 0) || (strcmp(cmd2, "to") == 0)))))
       {
-        strcpy(arg_container, cmd2);
+        if (number_of_words == 2)
+        {
+          strcpy(arg_container, cmd2);
+        }
+        if (number_of_words == 3)
+        {
+          strcpy(arg_container, cmd3);
+        }
         bzero(cmd_line, sizeof(&cmd_line));
         return i;
       }
@@ -225,52 +227,35 @@ void commandParse(struct BlogOperation *msg, int client_id)
       }
     }
   } while (valid_command == -1);
-  //printMsgAndCustomStatus(*msg, "[CLIENT][COMMAND_PARSE]"); // [DELETE]
 }
 
 void resultParse(struct BlogOperation *msg_received, int client_id)
 {
   do
   {
-    if (1 == msg_received->server_response)
+    if (msg_received->server_response == 1)
     {
       // SERVER.............................publish
-      if (2 == msg_received->operation_type && client_id != msg_received->client_id)
+      if (msg_received->operation_type == 2 /* && msg_received->client_id != client_id */)
       {
         printf("new post added in %s by %02i\n", msg_received->topic, msg_received->client_id);
         printf("%s", msg_received->content);
       }
       // SERVER.........................list topics
-      else if (3 == msg_received->operation_type)
+      else if (msg_received->operation_type == 3)
       {
         printf("%s", msg_received->content);
       }
-      else if (4 == msg_received->operation_type && 0 < strlen(msg_received->content))
+      else if (msg_received->operation_type == 4 && strlen(msg_received->content) > 0)
       {
         printf("%s", msg_received->content);
       }
     }
-  } while (1 != msg_received->server_response);
+  } while (msg_received->server_response != 1);
 }
 
-void printMsgAndCustomStatus(struct BlogOperation msg_package, const char *msg) // [DELETE]
-{
-  int num_of_chars = strlen(msg);
-  if (num_of_chars <= 0)
-  {
-    printf("\n// [PRINT] .........................................\n");
-  }
-  else
-  {
-    printf("\n// %s ", msg);
-    for (int i = 0; i < 64 - (num_of_chars - 4); i++)
-      printf(".");
-    printf("\n");
-  }
-  printf("client_id: %i\n", msg_package.client_id);
-  printf("operation_type: %i\n", msg_package.operation_type);
-  printf("server_response: %i\n", msg_package.server_response);
-  printf("msg->topic: %s\n", msg_package.topic);
-  printf("msg->content: %s\n", msg_package.content);
-  printf("\n");
-}
+/* 
+Dúvdas:
+- subscribe in <topico>, subscribe to <topico> ou subscribe <topico>?
+- client <id> disconnected ou client <id> was disconnected?
+ */

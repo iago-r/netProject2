@@ -351,7 +351,7 @@ void broadcast(struct BlogOperation msg, struct Topic **topic_to_broadcast)
   {
     for (int i = 1; i < 11; i++)
     {
-      if ((*topic_to_broadcast)->subscribers[i] == 1 && msg.client_id != i)
+      if ((*topic_to_broadcast)->subscribers[i] == 1 /* && msg.client_id != i */)
       {
         send(SOCKETS[i], &msg, sizeof(msg), 0);
       }
