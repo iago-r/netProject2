@@ -50,7 +50,7 @@ int connectToServer(struct BlogOperation msg, int socket);
 struct Topic *publish(struct BlogOperation *msg);
 void listTopics(struct BlogOperation *msg);
 void subscribe(struct BlogOperation *msg);
-int disconnect_from_server(struct BlogOperation msg, int client_id);
+int disconnectfromserver(struct BlogOperation msg, int client_id);
 void unsubscribe(struct BlogOperation *msg);
 
 void selectCommand(struct BlogOperation *msg, struct Topic **topic_to_publish);
@@ -146,7 +146,7 @@ void *client_thread(void *data)
     selectCommand(&msg, &topic_container);
     broadcast(msg, &topic_container);
 
-    if (disconnect_from_server(msg, client_id) == 1)
+    if (disconnectfromserver(msg, client_id) == 1)
     {
       break;
     }
@@ -285,7 +285,7 @@ void subscribe(struct BlogOperation *msg)
   }
 }
 
-int disconnect_from_server(struct BlogOperation msg, int client_id)
+int disconnectfromserver(struct BlogOperation msg, int client_id)
 {
   int current_id;
   if (msg.client_id <= 0 || msg.client_id > 10)
