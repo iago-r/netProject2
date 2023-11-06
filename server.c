@@ -26,7 +26,7 @@ struct BlogOperation
 struct Topic
 {
   char topic_name[50];
-  int subscribers[11]; // 0 in a position = not sub; 1 = sub; [TODO]: change variable name
+  int subscribers[11]; // not sub = 0; sub; 1
   char last_content_published[2048];
   int id_of_the_content_creator;
   struct Topic *next;
@@ -34,8 +34,8 @@ struct Topic
 
 struct TopicList
 {
-  struct Topic *head; // = NULL;
-  struct Topic *tail; // = NULL;
+  struct Topic *head;
+  struct Topic *tail;
 };
 
 struct TopicList TOPICS;
@@ -285,7 +285,7 @@ void subscribe(struct BlogOperation *msg)
   }
   if (topic_to_subscribe->subscribers[msg->client_id] == 1)
   {
-    strcpy(msg->content, "error: already subscribed");
+    strcpy(msg->content, "error: already subscribed\n");
   }
   else
   {
@@ -381,7 +381,7 @@ void printTopicAndCustomStatus(struct Topic **topic,const char *msg)
   else
   {
     printf("\n// %s ", msg);
-    for (int i = 0; i < 48 - num_of_chars; i++)
+    for (int i = 0; i < 64 - (num_of_chars - 4); i++)
       printf(".");
     printf("\n");
   }
@@ -410,7 +410,7 @@ void printMsgAndCustomStatus(struct BlogOperation msg_package, const char *msg) 
   else
   {
     printf("\n// %s ", msg);
-    for (int i = 0; i < 48 - num_of_chars; i++)
+    for (int i = 0; i < 64 - (num_of_chars - 4); i++)
       printf(".");
     printf("\n");
   }

@@ -247,7 +247,7 @@ void resultParse(struct BlogOperation *msg_received, int client_id)
       {
         printf("%s", msg_received->content);
       }
-      else if (4 == msg_received->operation_type && 0 != strlen(msg_received->content))
+      else if (4 == msg_received->operation_type && 0 < strlen(msg_received->content))
       {
         printf("%s", msg_received->content);
       }
@@ -265,7 +265,7 @@ void printMsgAndCustomStatus(struct BlogOperation msg_package, const char *msg) 
   else
   {
     printf("\n// %s ", msg);
-    for (int i = 0; i < 48 - num_of_chars; i++)
+    for (int i = 0; i < 64 - (num_of_chars - 4); i++)
       printf(".");
     printf("\n");
   }
