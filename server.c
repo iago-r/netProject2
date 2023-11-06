@@ -27,8 +27,6 @@ struct Topic
 {
   char topic_name[50];
   int subscribers[11]; // not sub = 0; sub; 1
-  char last_content_published[2048];
-  int id_of_the_content_creator;
   struct Topic *next;
 };
 
@@ -52,13 +50,11 @@ int connectToServer(struct BlogOperation msg, int socket);
 struct Topic *publish(struct BlogOperation *msg);
 void listTopics(struct BlogOperation *msg);
 void subscribe(struct BlogOperation *msg);
-void disconnect_from_server(struct BlogOperation *msg);
+int disconnect_from_server(struct BlogOperation msg, int client_id);
 void unsubscribe(struct BlogOperation *msg);
-void selectCommand(struct BlogOperation *msg, struct Topic **topic_to_publish);
-void broadcastMsg(struct BlogOperation msg, struct Topic **topic_to_broadcast);
 
-void printTopicAndCustomStatus(struct Topic **topic,const char *msg); // [DELETE]
-void printMsgAndCustomStatus(struct BlogOperation msg_package, const char *msg); // [DELETE]
+void selectCommand(struct BlogOperation *msg, struct Topic **topic_to_publish);
+void broadcast(struct BlogOperation msg, struct Topic **topic_to_broadcast);
 
 int main(int argc, char **argv)
 {
@@ -95,7 +91,7 @@ int main(int argc, char **argv)
   }
 
   if (listen(s, 10) != 0) // quantidade de conexões que podem estar pendentes para tratamento
-  { 
+  {
     logexit("listen");
   }
 
@@ -117,8 +113,7 @@ int main(int argc, char **argv)
       logexit("malloc");
     }
     cdata->client_socket = client_socket;
-    //printf("\n//[SERVER] ..............................\n"); printf("Socket: %i;\n", cdata->client_socket); // [DELETE]
-  
+
     pthread_t tid;
     pthread_create(&tid, NULL, client_thread, cdata);
   }
@@ -140,24 +135,22 @@ void *client_thread(void *data)
 
   int client_id = connectToServer(msg, cdata->client_socket);
   printf("client %02i connected\n", client_id);
-  //printf("\n//[SERVER][CLIENT_THREAD] ...............\n"); printf("Socket[id: %i]: %i;\n", client_id, cdata->client_socket); // [DELETE]
+
   while (1)
   {
     // RECEIVING PACKAGE.............................................
     bzero(&msg, sizeof(msg));
     recv(cdata->client_socket, &msg, sizeof(msg), 0);
-    printMsgAndCustomStatus(msg, "[SERVER] RECEIVE"); // [DELETE]
-    
+
     // SENDING PACKAGE...............................................
     selectCommand(&msg, &topic_container);
-    broadcastMsg(msg, &topic_container); 
+    broadcast(msg, &topic_container);
 
-    if (5 == msg.operation_type || 0 == msg.client_id)
+    if (disconnect_from_server(msg, client_id) == 1)
     {
       break;
     }
   }
-  SOCKETS[client_id] = 0;
   close(cdata->client_socket);
   pthread_exit(EXIT_SUCCESS);
 }
@@ -227,7 +220,6 @@ int connectToServer(struct BlogOperation msg, int socket)
       {
         bzero(&msg, sizeof(msg));
         SOCKETS[id] = socket;
-        //printf("\n//[SERVER][CONNECT_TO_SERVER] ...........\n"); printf("SOCKETS[%i]: %i;\n", id, SOCKETS[id]); // [DELETE]
         msg.client_id = id;
         msg.operation_type = 1;
         msg.server_response = 1;
@@ -248,9 +240,6 @@ struct Topic *publish(struct BlogOperation *msg)
   {
     topic_to_publish = createTopic(msg);
   }
-  topic_to_publish->id_of_the_content_creator = msg->client_id;
-  strcpy(topic_to_publish->last_content_published, msg->content);
-  //printf("\n//[SERVER][PUBLISH] PUBLISH_MSG..........\n"); printTopicAndCustomStatus(topic_to_publish);
   printf("new post added in %s by %02i\n", msg->topic, msg->client_id);
   return topic_to_publish;
 }
@@ -270,7 +259,9 @@ void listTopics(struct BlogOperation *msg)
       strcat(msg->content, cursor->topic_name);
       cursor = cursor->next;
       if (cursor != NULL)
+      {
         strcat(msg->content, "; ");
+      }
     }
     strcat(msg->content, "\n");
   }
@@ -294,19 +285,31 @@ void subscribe(struct BlogOperation *msg)
   }
 }
 
-void disconnect_from_server(struct BlogOperation *msg)
+int disconnect_from_server(struct BlogOperation msg, int client_id)
 {
-  if (msg->client_id > 0 && msg->client_id < 11)
+  int current_id;
+  if (msg.client_id <= 0 || msg.client_id > 10)
   {
-    //SOCKETS[msg->client_id] = 0;
-    struct Topic *cursor = TOPICS.head;
-    while (cursor != NULL)
-    {
-      cursor->subscribers[msg->client_id] = 0;
-      cursor = cursor->next;
-    }
-    printf("client %02i was disconnected\n", msg->client_id);
+    current_id = client_id;
   }
+  else if (msg.operation_type == 5)
+  {
+    current_id = msg.client_id;
+  }
+  else
+  {
+    return 0;
+  }
+
+  SOCKETS[current_id] = 0;
+  struct Topic *cursor = TOPICS.head;
+  while (cursor != NULL)
+  {
+    cursor->subscribers[current_id] = 0;
+    cursor = cursor->next;
+  }
+  printf("client %02i was disconnected\n", current_id);
+  return 1;
 }
 
 void unsubscribe(struct BlogOperation *msg)
@@ -326,7 +329,6 @@ void selectCommand(struct BlogOperation *msg, struct Topic **topic_to_publish)
   {
   case 2:
     *topic_to_publish = publish(msg);
-    printTopicAndCustomStatus(topic_to_publish, "[SERVER][SELECT_COMMAND] PUBLISH MSG");
     break;
 
   case 3:
@@ -337,21 +339,16 @@ void selectCommand(struct BlogOperation *msg, struct Topic **topic_to_publish)
     subscribe(msg);
     break;
 
-  case 5:
-    disconnect_from_server(msg);
-    break;
-
   case 6:
     unsubscribe(msg);
     break;
   }
 }
 
-void broadcastMsg(struct BlogOperation msg, struct Topic **topic_to_broadcast)
+void broadcast(struct BlogOperation msg, struct Topic **topic_to_broadcast)
 {
   if (2 == msg.operation_type)
   {
-    printMsgAndCustomStatus(msg, "[SERVER] [BROADCAST]"); // [DELETE]
     for (int i = 1; i < 11; i++)
     {
       if ((*topic_to_broadcast)->subscribers[i] == 1 && msg.client_id != i)
@@ -362,62 +359,6 @@ void broadcastMsg(struct BlogOperation msg, struct Topic **topic_to_broadcast)
   }
   else
   {
-    printMsgAndCustomStatus(msg, "[SERVER] [UNICAST]"); // [DELETE]
     send(SOCKETS[msg.client_id], &msg, sizeof(msg), 0);
-    if (msg.operation_type == 5)
-    {
-      SOCKETS[msg.client_id] = 0;
-    }
   }
-}
-
-void printTopicAndCustomStatus(struct Topic **topic,const char *msg)
-{
-  int num_of_chars = strlen(msg);
-  if (num_of_chars <= 0)
-  {
-    printf("\n// [PRINT] .........................................\n");
-  }
-  else
-  {
-    printf("\n// %s ", msg);
-    for (int i = 0; i < 64 - (num_of_chars - 4); i++)
-      printf(".");
-    printf("\n");
-  }
-  printf("Client -> %i\n", (*topic)->id_of_the_content_creator);
-  printf("Topic -> %s\n", (*topic)->topic_name);
-  printf("Content -> %s", (*topic)->last_content_published);
-  printf("Subscribers -> ");
-  for (int i = 1; i < 11; i++)
-  {
-    printf("[%02i]", (*topic)->subscribers[i]);
-    if (i != 10)
-    {
-      printf(" ");
-    }
-  }
-  printf("\n");
-}
-
-void printMsgAndCustomStatus(struct BlogOperation msg_package, const char *msg) // [DELETE]
-{
-  int num_of_chars = strlen(msg);
-  if (num_of_chars <= 0)
-  {
-    printf("\n// [PRINT] .........................................\n");
-  }
-  else
-  {
-    printf("\n// %s ", msg);
-    for (int i = 0; i < 64 - (num_of_chars - 4); i++)
-      printf(".");
-    printf("\n");
-  }
-  printf("client_id: %i\n", msg_package.client_id);
-  printf("operation_type: %i\n", msg_package.operation_type);
-  printf("server_response: %i\n", msg_package.server_response);
-  printf("msg->topic: %s\n", msg_package.topic);
-  printf("msg->content: %s\n", msg_package.content);
-  printf("\n");
 }
